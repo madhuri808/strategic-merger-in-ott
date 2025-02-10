@@ -1,1 +1,169 @@
+Que1) Total Users & Growth Trends 
+What is the total number of users for LioCinema and Jotstar, and how do they compare in terms of growth trends (January–November 2024)?
+
+Answer :- select monthname(subscription_date) as new_user , count(user_id) as cnt from subscribers
+group by
+monthname(subscription_date) 
+order by cnt;
+
+select concat(round((count(case when subscription_date between "2024-01-01" and "2024-06-01"
+ then user_id end)*100)/
+count(user_id),2),"% ") as h1_growth_pct ,
+concat(round((count(case when subscription_date between "2024-07-01" and "2024-11-01" 
+then user_id end)*100)/
+count(user_id),2),"%") as h2_growth_pct
+from subscribers;
+
+Que2)Content Library Comparison 
+What is the total number of contents available on LioCinema vs. Jotstar? How do they differ in terms of language and content type? 
+
+Answer :- select count(content_id) from contents;
+ select group_concat(distinct content_type order by content_type asc ) as content ,
+ group_concat(distinct language order by language asc) as lang
+ from contents;
+
+Que3) User Demographics 
+What is the distribution of users by age group, city tier, and subscription plan for each platform? 
+
+Answer :- select coalesce(city_tier,"unknown") as city_tier , count(user_id) as user_count ,
+count(case when age_group between 18 and 24 then user_id end) as age_18to24,
+count(case when age_group between 25 and 34 then user_id end) as age_25to34,
+count(case when age_group between 35 and 44 then user_id end) as age_35to44,
+count(case when age_group >= 45 then user_id end) as age_45plus,
+count(case when subscription_plan = "Basic" then user_id end) as basic_users,
+count(case when subscription_plan = "Free" then user_id end) as Free_users,
+count(case when subscription_plan = "Premium" then user_id end) as Premium_users
+from subscribers
+group by coalesce(city_tier,"unknown")
+order by city_tier;
+
+Que4)Active vs. Inactive Users 
+What percentage of LioCinema and Jotstar users are active vs. inactive? How do these rates vary by age group and subscription plan? 
+
+Answer :-  select count(user_id) as total_users,
+(count(case when last_active_date is  NULL then user_id end))*100/count(user_id) as activeuser_pct,
+(count(case when last_active_date is not NULL then user_id end))*100/count(user_id) as inactiveuser_pct ,
+count(case when age_group between 18 and 24 then user_id end) as age_18to24,
+count(case when age_group between 25 and 34 then user_id end) as age_25to34,
+count(case when age_group between 35 and 44 then user_id end) as age_35to44,
+count(case when age_group >= 45 then user_id end) as age_45plus,
+count(case when subscription_plan = "Basic" then user_id end) as basic_users,
+count(case when subscription_plan = "Free" then user_id end) as Free_users,
+count(case when subscription_plan = "Premium" then user_id end) as Premium_users
+ from subscribers;
+
+Que5) Watch Time Analysis 
+What is the average watch time for LioCinema vs. Jotstar during the analysis period? How do these compare by city tier and device type? 
+
+Answer :- select round(avg(total_watch_time_mins),2) as avg_time from content_consumption;
+ select device_type, city_tier, round(avg(total_watch_time_mins),2)  as avg_time 
+from content_consumption c
+join subscribers s on 
+c.user_id = s.user_id
+group by device_type ,city_tier
+order by city_tier,device_type;
+
+Que6)Inactivity Correlation 
+How do inactivity patterns correlate with total watch time or average watch time? Are less engaged users more likely to become inactive? 
+
+Answer :- select count(s.user_id) as total_users,sum(total_watch_time_mins) as total_watch_time,
+avg(total_watch_time_mins) as avg_watch_time, 
+round((count(s.user_id) * 100)/sum(count(s.user_id)) over (),2)
+as pct_of_users,
+case when last_active_date is null then "Active users"
+else "inactive" end as user_status from subscribers s 
+join content_consumption c 
+on s.user_id = c.user_id
+group by user_status;
+
+Que7)Downgrade Trends 
+How do downgrade trends differ between LioCinema and Jotstar? Are downgrades more prevalent on one platform compared to the other? 
+
+Answer:- select "jotstar" as platform ,count(case when subscription_plan > new_subscription_plan then user_id end) as total_downgrade,
+count(user_id) as total_users,
+round(count(case when subscription_plan > new_subscription_plan then user_id end)*100/count(user_id),2) 
+as downgrade_pct
+from liocinema_db.subscribers
+union all
+select "liocinema" as platform,count(case when subscription_plan > new_subscription_plan then user_id end) as total_downgrade,
+count(user_id) as total_users,
+round(count(case when subscription_plan > new_subscription_plan then user_id end)*100/count(user_id),2) 
+as downgrade_pct 
+from jotstar_db.subscribers;
+
+Que8)Upgrade Patterns 
+What are the most common upgrade transitions (e.g., Free to Basic, Free to VIP, Free to Premium) for LioCinema and Jotstar? How do these differ across platforms? 
+
+Answer :- select "liocinema" as platform,subscription_plan,new_subscription_plan,count(user_id) as upgrade_count
+from liocinema_db.subscribers where new_subscription_plan>subscription_plan 
+group by subscription_plan,new_subscription_plan
+union all
+select "jotstar" as platform,subscription_plan,new_subscription_plan,count(user_id) as upgrade_count
+from jotstar_db.subscribers where new_subscription_plan>subscription_plan 
+group by subscription_plan,new_subscription_plan
+order by upgrade_count asc;
+
+Que9) Paid Users Distribution 
+How does the paid user percentage (e.g., Basic, Premium for LioCinema; VIP, Premium for Jotstar) vary across different platforms? 
+Analyse the proportion of premium users in Tier 1, Tier 2, and Tier 3 cities and identify any notable trends or differences. 
+
+Answer:- select "liocinema" as platform ,city_tier,
+count(case when subscription_plan = "Free" then user_id end)*100/count(user_id)as Free_pct,
+count(case when subscription_plan = "Basic" then user_id end)*100/count(user_id)as basic_pct,
+count(case when subscription_plan = "Premium" then user_id end)*100/count(user_id)as Premium_pct,
+coalesce(count(case when subscription_plan = "Vip" then user_id end)*100/nullif(count(user_id),0)) 
+as vip_pct
+from liocinema_db.subscribers 
+group by city_tier
+union all
+select "jotstar" as platform ,city_tier,
+count(case when subscription_plan = "Vip" then user_id end)*100/count(user_id)as Vip_pct,
+count(case when subscription_plan = "free" then user_id end)*100/count(user_id)as free_pct,
+count(case when subscription_plan = "Premium" then user_id end)*100/count(user_id)as Premium_pct,
+coalesce(count(case when subscription_plan = "basic" then user_id end)*100/nullif(count(user_id),0)) 
+as basic_pct
+from jotstar_db.subscribers 
+group by city_tier
+order by city_tier,platform;
+
+Que10)Revenue Analysis 
+Assume the following monthly subscription prices, calculate the total revenue generated by both platforms (LioCinema and Jotstar) for the analysis period (January to November 2024).  
+
+Answer :- for liocinema
+SELECT 'LioCinema' AS platform,subscription_plan, 
+COUNT(user_id) AS total_users,SUM((CASE WHEN last_active_date IS NULL 
+THEN DATEDIFF('2024-11-30', plan_change_date)ELSE DATEDIFF(last_active_date, plan_change_date) END)/30.0
+) AS active_months,
+SUM((CASE WHEN last_active_date IS NULL THEN DATEDIFF('2024-11-30', plan_change_date)ELSE 
+DATEDIFF(last_active_date, plan_change_date)END) / 30.0 *(CASE WHEN subscription_plan = 'Basic' THEN 69
+WHEN subscription_plan = 'Premium' THEN 129 ELSE 0 END)) AS total_revenue FROM subscribers
+WHERE subscription_plan IN ('Basic', 'Premium')  
+GROUP BY subscription_plan;
+
+-- for jotstar
+SELECT 'jotstar' AS platform,subscription_plan, 
+COUNT(user_id) AS total_users,SUM((CASE WHEN last_active_date IS NULL 
+THEN DATEDIFF('2024-11-30', plan_change_date)ELSE DATEDIFF(last_active_date, plan_change_date) END)/30.0
+) AS active_months,
+SUM((CASE WHEN last_active_date IS NULL THEN DATEDIFF('2024-11-30', plan_change_date)ELSE 
+DATEDIFF(last_active_date, plan_change_date)END) / 30.0 *(CASE WHEN subscription_plan = 'Vip' THEN 159
+WHEN subscription_plan = 'Premium' THEN 359 ELSE 0 END)) AS total_revenue FROM subscribers
+WHERE subscription_plan IN ('Vip', 'Premium')  
+GROUP BY subscription_plan
+
+
+
+
+
+ 
+ 
+
+
+
+
+
+
+
+
+
 

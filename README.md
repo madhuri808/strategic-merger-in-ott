@@ -530,6 +530,6 @@ Data Analyst | SQL Enthusiast
 
 ---
 
-## 📄 License
-
-This project is for educational and portfolio purposes only.
+## 💬 Feedback & Connect
+If you found this project helpful or have suggestions,
+feel free to connect with me on LinkedIn — I'd love to hear from you!
